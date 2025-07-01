@@ -1,14 +1,18 @@
 from flask import Blueprint, request, jsonify
+from controllers.query_parser import QueryParser
 
 query_bp = Blueprint("query", __name__)
+query_parser = QueryParser()
 
 @query_bp.route("/api/query", methods=["POST"])
 def query():
-    user_input = request.json.get("messages")
-    # TODO: return clarification questions
-    print(request.json)
+    messages = request.json.get("messages")
+    query_summary = request.json.get("summary")
+    response = query_parser.handle_query(messages)
+
+    print(response)
     return jsonify({
-        "message": "Here is the summary so far...",
+        "message": response,
         "summary": {
             "company": "Apple Inc.",
             "focusAreas": ["Financials", "Growth"],

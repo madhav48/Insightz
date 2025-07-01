@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge"
 import { Send, Bot, User, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { ReportModal } from "@/components/ReportModal"
+import ReactMarkdown from "react-markdown"
 
 interface Message {
-  id: string
-  type: "user" | "bot"
-  content: string
+  role: "user" | "model"
+  parts: { text: string }[]
 }
 
 interface QuerySummary {
@@ -28,10 +28,12 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_FLASK_API_BASE_URL;
 export default function QueryPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: "1",
-      type: "bot",
-      content:
-        "Hi! I'm here to help you generate comprehensive stock reports. What company would you like me to analyze?",
+      role: "model",
+      parts: [
+        {
+          text: "Hey! How can I assist you with your financial analysis today?",
+        },
+      ],
     },
   ])
   const [inputValue, setInputValue] = useState("")
@@ -44,6 +46,7 @@ export default function QueryPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportData, setReportData] = useState(null)
+  const [isLoading, setIsLoading] = useState(false) // Add loading state
   const router = useRouter()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
@@ -54,40 +57,43 @@ export default function QueryPage() {
   }, [messages])
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return
+    if (!inputValue.trim() || isLoading) return
 
     const userMessage: Message = {
-      id: Date.now().toString(),
-      type: "user",
-      content: inputValue,
+      role: "user",
+      parts: [{ text: inputValue }],
     }
 
     setMessages((prev) => [...prev, userMessage])
     setInputValue("")
+    setIsLoading(true) // Start loader
 
     try {
+      // Remove id from all messages before sending to API
+      const messagesForApi = [...messages, userMessage].map(({ role, parts }) => ({ role, parts }))
+
       const response = await fetch(`${API_BASE_URL}/api/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMessage], summary: querySummary }),
+        body: JSON.stringify({ messages: messagesForApi, summary: querySummary }),
       })
       if (!response.ok) throw new Error("API error")
       const data = await response.json()
       // Expecting: { message: string, summary: Partial<QuerySummary> }
       const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "bot",
-        content: data.message,
+        role: "model",
+        parts: [{ text: data.message }],
       }
       setMessages((prev) => [...prev, botMessage])
       setQuerySummary((prev) => ({ ...prev, ...data.summary }))
     } catch (err) {
       const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "bot",
-        content: "Sorry, there was a problem getting a response. Please try again.",
+        role: "model",
+        parts: [{ text: "Sorry, there was a problem getting a response. Please try again." }],
       }
       setMessages((prev) => [...prev, botMessage])
+    } finally {
+      setIsLoading(false) // Stop loader
     }
   }
 
@@ -117,9 +123,9 @@ export default function QueryPage() {
       <div className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Generate Stock Report</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Generate Insights</h1>
             <p className="text-gray-600 dark:text-gray-300">
-              Tell me what you'd like to analyze, and I'll help you create a comprehensive investment report.
+              Ask me anything about companies, stocks, or financial metrics. I'll help you analyze, compare, and generate actionable investment insights.
             </p>
           </div>
 
@@ -129,33 +135,37 @@ export default function QueryPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Bot className="h-5 w-5 text-blue-600" />
-                  AI Assistant
+                  Assistant
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col">
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2" style={{ minHeight: 0, maxHeight: 400 }}>
-                  {messages.map((message) => (
+                  {messages.map((message, idx) => (
                     <div
-                      key={message.id}
-                      className={`flex items-start gap-3 ${message.type === "user" ? "flex-row-reverse" : ""}`}
+                      key={idx}
+                      className={`flex items-start gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
                     >
                       <div
                         className={`p-2 rounded-full ${
-                          message.type === "user" ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-gray-700"
+                          message.role === "user" ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-gray-700"
                         }`}
                       >
-                        {message.type === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                        {message.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                       </div>
                       <div
                         className={`max-w-[80%] p-3 rounded-lg ${
-                          message.type === "user"
+                          message.role === "user"
                             ? "bg-blue-600 text-white"
                             : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
                         }`}
                         style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
                       >
-                        <p className="text-sm">{message.content}</p>
+                        <div className="text-sm markdown-content">
+                          <ReactMarkdown>
+                            {message.parts.map((part) => part.text).join(" ")}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -170,9 +180,14 @@ export default function QueryPage() {
                     placeholder="Type your message..."
                     onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                     className="flex-1"
+                    disabled={isLoading}
                   />
-                  <Button onClick={handleSendMessage} size="sm">
-                    <Send className="h-4 w-4" />
+                  <Button onClick={handleSendMessage} size="sm" disabled={isLoading}>
+                    {isLoading ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </CardContent>

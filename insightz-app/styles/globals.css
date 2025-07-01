@@ -92,3 +92,16 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+.markdown-content ol,
+.markdown-content ul {
+  list-style: revert !important;
+  margin-left: 1.5em !important;
+  padding-left: 0 !important;
+}
+.markdown-content li {
+  margin-bottom: 0.5em !important;
+}
+.markdown-content p {
+  margin-bottom: 1em !important;
+}
