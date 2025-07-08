@@ -5,7 +5,25 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge"
 import { Download, FileText, Hash, TrendingUp, AlertTriangle, Users, Target, Building } from "lucide-react"
 
-export function ReportModal({ open, onClose, reportData }) {
+type ReportModalProps = {
+  open: boolean;
+  onClose: () => void;
+  reportData: {
+    company: string;
+    generatedAt: string;
+    summary: string;
+    keyMetrics: {
+      marketCap: string;
+      peRatio: string;
+      revenue: string;
+      grossMargin: string;
+    };
+    // Add more fields as needed for your reportData structure
+    [key: string]: any;
+  } | null;
+};
+
+export function ReportModal({ open, onClose, reportData }: ReportModalProps) {
   if (!reportData) return null;
   return (
     <Dialog open={open} onOpenChange={onClose}>
