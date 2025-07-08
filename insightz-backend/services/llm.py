@@ -27,12 +27,14 @@ class LLM:
         """
         try:
             model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash-lite",
-                system_instruction=self.system_message
+                model_name="gemini-2.0-flash",
+                system_instruction=self.system_message,
             )
             # Append the new user message to the history
             chat = model.start_chat(history=history)
             response = chat.send_message(message)
+
+            # print(response)
 
             if save_history:
                 # Append the new message to the history

@@ -6,7 +6,7 @@ from routes.download import download_bp
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
 app.register_blueprint(query_bp)
 app.register_blueprint(generate_bp)
 app.register_blueprint(history_bp)

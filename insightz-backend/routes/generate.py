@@ -1,11 +1,23 @@
 from flask import Blueprint, request, jsonify
+import time
+from controllers.report_generator import ReportGenerator
 
 generate_bp = Blueprint("generate", __name__)
+
+report_generator = ReportGenerator(verbose=True)
 
 @generate_bp.route("/api/generate-report", methods=["POST"])
 def generate_report():
     data = request.json
+    summary = data.get("summary", "")
     # TODO: call LLM + data fetch logic
+
+    # time.sleep(5)
+    print(summary)
+
+    return jsonify(report_generator.generate_report(summary))
+
+
     return jsonify({
     "company": "Apple",
     "generatedAt": "2025-06-26",

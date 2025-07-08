@@ -8,24 +8,10 @@ query_parser = QueryParser()
 def query():
     messages = request.json.get("messages")
     query_summary = request.json.get("summary")
-    response = query_parser.handle_query(messages)
+    response = query_parser.handle_query(messages, query_summary)
 
     print(response)
     return jsonify({
         "message": response,
-        "summary": {
-            "company": "Apple Inc.",
-            "focusAreas": ["Financials", "Growth"],
-            "timeframe": "Last 5 years",
-            "analysisType": "Investment"
-        }
+        "summary": query_summary
     })
-
-
-# @query_bp.route("/api/query", methods=["POST"])
-# def handle_query():
-#     data = request.json
-#     messages = data.get("messages", [])  # full conversation history
-#     summary = data.get("summary", {})    # current extracted info
-#     response, updated_summary = generate_response(messages, summary)
-#     return jsonify({"message": response, "summary": updated_summary})

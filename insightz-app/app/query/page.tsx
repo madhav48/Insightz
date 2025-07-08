@@ -9,6 +9,7 @@ import { Send, Bot, User, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { ReportModal } from "@/components/ReportModal"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 interface Message {
   role: "user" | "model"
@@ -24,6 +25,13 @@ interface QuerySummary {
 
 // Configurable API base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_FLASK_API_BASE_URL;
+const REPORT_STEPS = [
+  "Generating Report...",
+  "Collecting Data...",
+  "Processing Data...",
+  "Summarising Data...",
+  "Finalising Report..."
+];
 
 export default function QueryPage() {
   const [messages, setMessages] = useState<Message[]>([
@@ -47,6 +55,10 @@ export default function QueryPage() {
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportData, setReportData] = useState(null)
   const [isLoading, setIsLoading] = useState(false) // Add loading state
+  const [shouldAutoGenerate, setShouldAutoGenerate] = useState(false)
+  const [pendingReportData, setPendingReportData] = useState<{ messages: Message[]; summary: QuerySummary } | null>(null)
+  const [reportStep, setReportStep] = useState(0);
+  const stepRef = useRef(0);
   const router = useRouter()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
@@ -55,6 +67,16 @@ export default function QueryPage() {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages])
+
+  // Auto-trigger report generation when flagged and state is up-to-date
+  useEffect(() => {
+    if (shouldAutoGenerate && pendingReportData) {
+      handleGenerateReportWithMessages(pendingReportData.messages, pendingReportData.summary)
+      setShouldAutoGenerate(false)
+      setPendingReportData(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldAutoGenerate, pendingReportData])
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
@@ -69,8 +91,9 @@ export default function QueryPage() {
     setIsLoading(true) // Start loader
 
     try {
-      // Remove id from all messages before sending to API
-      const messagesForApi = [...messages, userMessage].map(({ role, parts }) => ({ role, parts }))
+      // Cap messages to the last 15 before sending to API
+      const cappedMessages = [...messages, userMessage].slice(-15)
+      const messagesForApi = cappedMessages.map(({ role, parts }) => ({ role, parts }))
 
       const response = await fetch(`${API_BASE_URL}/api/query`, {
         method: "POST",
@@ -84,8 +107,22 @@ export default function QueryPage() {
         role: "model",
         parts: [{ text: data.message }],
       }
-      setMessages((prev) => [...prev, botMessage])
-      setQuerySummary((prev) => ({ ...prev, ...data.summary }))
+
+      // Add bot message and update summary ONCE
+      setMessages((prev) => {
+        const updated = [...prev, botMessage]
+        if (typeof data.message === "string" && data.message.trim().startsWith("Generating report for")) {
+          setQuerySummary((prevSummary) => {
+            const newSummary = { ...prevSummary, ...data.summary }
+            setPendingReportData({ messages: updated, summary: newSummary })
+            setShouldAutoGenerate(true)
+            return newSummary
+          })
+        } else {
+          setQuerySummary((prev) => ({ ...prev, ...data.summary }))
+        }
+        return updated
+      })
     } catch (err) {
       const botMessage: Message = {
         role: "model",
@@ -97,13 +134,14 @@ export default function QueryPage() {
     }
   }
 
-  const handleGenerateReport = async () => {
+  // Helper to trigger report generation with up-to-date messages and summary
+  const handleGenerateReportWithMessages = async (currentMessages: Message[], currentSummary: QuerySummary) => {
     setIsGenerating(true)
     try {
       const response = await fetch(`${API_BASE_URL}/api/generate-report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary: querySummary, messages }),
+        body: JSON.stringify({ summary: currentSummary, messages: currentMessages }),
       })
       if (!response.ok) throw new Error("API error")
       const data = await response.json()
@@ -112,6 +150,63 @@ export default function QueryPage() {
       setShowReportModal(true)
     } catch (err) {
       setIsGenerating(false)
+      // Optionally show an error toast or message
+    }
+  }
+
+  const handleGenerateReport = async () => {
+    setIsGenerating(true);
+    setReportStep(0);
+    stepRef.current = 0;
+
+    let interval: NodeJS.Timeout | null = null;
+
+    // Start stepper
+    interval = setInterval(() => {
+      setReportStep(prev => {
+        if (prev < REPORT_STEPS.length - 1) {
+          stepRef.current = prev + 1;
+          return prev + 1;
+        } else {
+          if (interval) clearInterval(interval);
+          return prev;
+        }
+      });
+    }, 1200);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/generate-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary: querySummary, messages }),
+      });
+      if (!response.ok) throw new Error("API error");
+      const data = await response.json();
+      setReportData(data);
+
+      // If backend responds early, quickly finish steps
+      if (interval) clearInterval(interval);
+      let fastStep = stepRef.current;
+      const fastAdvance = () => {
+        fastStep++;
+        setReportStep(fastStep);
+        stepRef.current = fastStep;
+        if (fastStep < REPORT_STEPS.length - 1) {
+          setTimeout(fastAdvance, 100);
+        } else {
+          setIsGenerating(false);
+          setShowReportModal(true);
+        }
+      };
+      if (fastStep < REPORT_STEPS.length - 1) {
+        fastAdvance();
+      } else {
+        setIsGenerating(false);
+        setShowReportModal(true);
+      }
+    } catch (err) {
+      if (interval) clearInterval(interval);
+      setIsGenerating(false);
       // Optionally show an error toast or message
     }
   }
@@ -162,7 +257,7 @@ export default function QueryPage() {
                         style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
                       >
                         <div className="text-sm markdown-content">
-                          <ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {message.parts.map((part) => part.text).join(" ")}
                           </ReactMarkdown>
                         </div>
@@ -253,7 +348,7 @@ export default function QueryPage() {
                   {isGenerating ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Generating Report...
+                      {REPORT_STEPS[reportStep]}
                     </>
                   ) : (
                     "Generate Report"
