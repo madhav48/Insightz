@@ -135,18 +135,6 @@ export default function AboutPage() {
           </CardContent>
         </Card>
 
-        {/* Team Section */}
-        <Card className="mb-12">
-          <CardHeader>
-            <CardTitle className="text-2xl text-center">Built by Experts</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <p className="text-lg text-gray-700 dark:text-gray-300 mb-6">
-              Our team combines decades of experience in finance, technology, and artificial intelligence to deliver the
-              most accurate and useful investment research platform.
-            </p>
-          </CardContent>
-        </Card>
 
         {/* Contact CTA */}
         <Card>
