@@ -42,7 +42,7 @@ class QueryParser:
         llm_response = self.get_llm_response(history, message)
         if not llm_response:
             return None
-        print("LLM 1 Response: ", llm_response)
+        # print("LLM 1 Response: ", llm_response)
         parsed_json = parse_json(llm_response)
         return parsed_json if parsed_json else None
 
@@ -72,7 +72,7 @@ class GenerateResponseController:
         else:
             action = None
 
-        print(action)
+        # print(action)
         if action == "report":
             # Handle report action
             return self.report_generator.handle_report(history, message, action_json, query_summary)
