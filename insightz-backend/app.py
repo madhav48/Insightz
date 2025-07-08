@@ -8,6 +8,7 @@ import os
 
 app = Flask(__name__)
 CORS(app)
+app.config["DEBUG"] = True 
 app.register_blueprint(query_bp)
 app.register_blueprint(generate_bp)
 app.register_blueprint(history_bp)
