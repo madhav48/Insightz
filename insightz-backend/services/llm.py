@@ -1,77 +1,46 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 import os
 
-
 load_dotenv()
-
 
 class LLM:
     def __init__(self, system_message: str = ""):
-        """
-        Initialize the LLM with API key and system message.
-        """
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        self.api_key=os.getenv("GEMINI_API_KEY")
         self.system_message = system_message
 
-        # for model in genai.list_models():
-        #     print(model)
-
-
-    def send_message_with_history(self, history: list, message: str, save_history = False) -> str:
-        """
-        Accepts the full conversation history and a new message,
-        sends it to the Gemini model, and returns the response.
-        The history should be a list of dicts:
-        [{"role": "user"/"model", "parts": [{"text": "..."}, ...]}, ...]
-        """
+    def send_message_with_history(self, history: list, message: str, save_history=False) -> str:
         try:
-            model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
-                system_instruction=self.system_message,
-            )
-            # Append the new user message to the history
-            chat = model.start_chat(history=history)
-            response = chat.send_message(message)
+            contents = []
 
-            # print(response)
+            # Add previous history
+            for entry in history:
+                contents.append(entry["parts"][0]["text"])
+
+            # Append new user message
+            contents.append(message)
+
+            response = genai.Client(api_key= self.api_key).models.generate_content(
+                model="gemini-2.5-flash",
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=self.system_message,
+                    # Can add: max_output_tokens, temperature, top_p, etc.
+                )
+            )
+
+            text = response.text
 
             if save_history:
-                # Append the new message to the history
                 self.append_to_history(history, "user", message)
-                self.append_to_history(history, "model", response.text)
+                self.append_to_history(history, "model", text)
 
-            return response.text
+            return text
+
         except Exception as e:
             print(f"Error while sending message: {e}")
             return ""
-        
-    def append_to_history(self, history: list, role: str, text: str) -> list:
-        """
-        Appends a new message to the conversation history.
-        """
-        history.append({
-            "role": role,
-            "parts": [{"text": text}]
-        })
 
-# Example usage:
-if __name__ == "__main__":
-    from llm_system_messages import *
-    SYSTEM_MESSAGE = QUERY_PARSE_INSTRUCTIONS
-    llm = LLM(system_message=SYSTEM_MESSAGE)
-    # Example history
-    history = [
-        {"role": "user", "parts": [{"text": "Hello"}]},
-        {"role": "model", "parts": [{"text": "Hi! How can I help you?"}]}
-    ]
-
-    while(True):
-        query = input()
-        reply = llm.send_message_with_history(history, query)
-        history += [
-        {"role": "user", "parts": [{"text": query}]},
-        {"role": "model", "parts": [{"text": reply}]}
-    ]
-        print("LLM Response:", reply)
-
+    def append_to_history(self, history: list, role: str, text: str):
+        history.append({"role": role, "parts": [{"text": text}]})
