@@ -4,6 +4,7 @@ from routes.generate import generate_bp
 from routes.history import history_bp
 from routes.download import download_bp
 from flask_cors import CORS
+import os
 
 app = Flask(__name__)
 CORS(app)
